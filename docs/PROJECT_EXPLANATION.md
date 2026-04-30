@@ -17,7 +17,7 @@ MySQL 任务与结果持久化
   |
 ReviewWorkflow
   |
-Query -> Search -> Rank -> Read -> Organize -> Outline -> Write -> Citation
+Query -> Search -> Rank -> Read -> Organize -> Outline -> RAG -> Write -> Citation
   |
 DeepSeek / Minimax API + Semantic Scholar / arXiv
 ```
@@ -30,8 +30,9 @@ DeepSeek / Minimax API + Semantic Scholar / arXiv
 4. ReadAgent：并发分析论文摘要，抽取问题、方法、贡献、局限和数据集。
 5. OrganizeAgent：把论文按研究方向分组，生成对比表和主题总结。
 6. OutlineAgent：根据分类结果生成综述大纲。
-7. WriteAgent：生成完整综述正文。
-8. CitationAgent：校验正文引用编号是否对应真实论文。
+7. LightweightRAG：把论文摘要和结构化分析切成证据片段，按大纲章节召回相关 evidence。
+8. WriteAgent：基于召回证据生成完整综述正文。
+9. CitationAgent：校验正文引用编号是否对应真实论文。
 
 ## 技术亮点
 
@@ -39,6 +40,7 @@ DeepSeek / Minimax API + Semantic Scholar / arXiv
 - MySQL 持久化：任务、论文和结果可追踪，便于课堂演示和后续扩展。
 - 配置化 LLM：支持 DeepSeek 和 Minimax 的 OpenAI-compatible Chat API。
 - 检索增强生成：先检索真实论文，再基于文献信息生成综述，降低凭空生成风险。
+- 轻量 RAG 证据链：不依赖本地 embedding，用关键词召回把 evidence 与综述章节绑定。
 - 可解释排序：用关键词、引用量、年份和来源权重打分，便于向老师或面试官说明。
 - 后台任务执行：前端创建任务后轮询状态，用户能看到 Agent 阶段进度。
 - 鲁棒性处理：LLM 调用有重试，JSON 输出支持 Markdown 包裹和前后说明文本。
@@ -47,11 +49,15 @@ DeepSeek / Minimax API + Semantic Scholar / arXiv
 
 可以这样介绍：
 
-> 我做了一个科研文献综述自动生成 Agent。它不是单纯把用户问题发给大模型，而是先通过 Semantic Scholar 和 arXiv 检索真实论文，再做轻量相关性排序，然后让不同 Agent 分别完成阅读、归类、大纲和写作，最后做引用校验。后端用 FastAPI 和 MySQL，前端用 Vue3 和 Element Plus，LLM 接 DeepSeek 或 Minimax。项目重点是完整 AI 应用闭环和可解释的工程实现。
+> 我做了一个科研文献综述自动生成 Agent。它不是单纯把用户问题发给大模型，而是先通过 Semantic Scholar 和 arXiv 检索真实论文，再做轻量相关性排序和结构化阅读，然后构建 RAG 证据片段库，按综述章节召回 evidence 后再生成正文，最后做引用校验。后端用 FastAPI 和 MySQL，前端用 Vue3 和 Element Plus，LLM 接 DeepSeek 或 Minimax。项目重点是完整 AI 应用闭环和可解释的工程实现。
 
 如果面试官问为什么不用向量模型，可以回答：
 
 > 课程设计目标是轻量部署，用户机器不希望安装 torch 或 CUDA。所以我没有强依赖本地 embedding，而是用了可解释的启发式排序。这样部署更稳定，也避免外部 chat 模型没有 embeddings endpoint 时出现不可控降级。后续如果条件允许，可以把 Minimax embedding 或其他向量服务作为可选模块接入。
+
+如果面试官问 RAG 在哪里，可以回答：
+
+> 本项目的 RAG 不是重型向量库版本，而是轻量 evidence-based RAG。系统先从真实论文中抽取标题、摘要、研究问题、方法、贡献和局限等证据片段；写作前根据综述大纲的每个章节做关键词召回，把最相关的 evidence 放进 prompt；生成时要求优先依据这些证据，并且引用必须使用已有 paper_id。这样可以在不安装 torch 和向量数据库的情况下体现检索增强生成。
 
 如果面试官问 Agent 体现在哪里，可以回答：
 

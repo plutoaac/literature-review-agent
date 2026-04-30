@@ -14,6 +14,7 @@ from app.schemas import (
 )
 from app.workflow import ReviewWorkflow
 from app.services.exporter import get_exporter
+from app.services.rag import get_rag_service
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +152,29 @@ async def get_task_result(
             relevance_score=p.relevance_score
         ))
 
+    rag_inputs = []
+    for paper in papers:
+        analysis = db.query(PaperAnalysis).filter(PaperAnalysis.paper_id == paper.id).first()
+        if analysis:
+            rag_inputs.append({
+                "paper_index": paper.paper_index,
+                "title": paper.title,
+                "abstract": paper.abstract,
+                "source": paper.source,
+                "year": paper.year,
+                "problem": analysis.problem,
+                "method": analysis.method,
+                "contribution": analysis.contribution,
+                "limitation": analysis.limitation,
+                "category": analysis.category,
+            })
+
+    rag_evidence = get_rag_service().build_evidence_pack(
+        outline=review.outline if review else None,
+        analyses=rag_inputs,
+        topic=task.topic,
+    )
+
     return ReviewResult(
         task_id=task_id,
         status=task.status,
@@ -161,6 +185,7 @@ async def get_task_result(
         citation_report=review.citation_report if review else None,
         papers=paper_infos,
         analyses=analyses,
+        rag_evidence=rag_evidence,
         error_message=task.error_message
     )
 
@@ -182,6 +207,9 @@ async def export_markdown(
             analyses.append({
                 "paper_index": paper.paper_index,
                 "title": paper.title,
+                "abstract": paper.abstract,
+                "source": paper.source,
+                "year": paper.year,
                 "problem": analysis.problem,
                 "method": analysis.method,
                 "contribution": analysis.contribution,
@@ -191,6 +219,11 @@ async def export_markdown(
             })
 
     review = db.query(Review).filter(Review.task_id == task_id).first()
+    rag_evidence = get_rag_service().build_evidence_pack(
+        outline=review.outline if review else None,
+        analyses=analyses,
+        topic=task.topic,
+    )
 
     paper_dicts = [p.__dict__ for p in papers]
     for p in paper_dicts:
@@ -204,7 +237,8 @@ async def export_markdown(
         outline=review.outline if review else None,
         content=review.content if review else None,
         valid_citations=review.valid_citations if review else None,
-        citation_report=review.citation_report if review else ""
+        citation_report=review.citation_report if review else "",
+        rag_evidence=rag_evidence
     )
 
     return {

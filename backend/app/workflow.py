@@ -10,6 +10,7 @@ from app.agents.organize import OrganizeAgent
 from app.agents.outline import OutlineAgent
 from app.agents.write import WriteAgent
 from app.agents.citation import CitationCheckAgent
+from app.services.rag import get_rag_service
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ class ReviewWorkflow:
         self.outline_agent = OutlineAgent()
         self.write_agent = WriteAgent()
         self.citation_check_agent = CitationCheckAgent()
+        self.rag_service = get_rag_service()
 
     async def run(self, task_id: str, db: Session):
         logger.info(f"Workflow: Starting task {task_id}")
@@ -114,6 +116,17 @@ class ReviewWorkflow:
             task.progress = 70
             db.commit()
 
+            task.current_phase = "RAGAgent"
+            db.commit()
+
+            rag_evidence = self.rag_service.build_evidence_pack(
+                outline=outline,
+                analyses=analyses,
+                topic=task.topic
+            )
+            task.progress = 75
+            db.commit()
+
             task.current_phase = "WriteAgent"
             db.commit()
 
@@ -121,6 +134,7 @@ class ReviewWorkflow:
                 outline=outline,
                 categories=organized.get("categories", []),
                 ranked_papers=ranked_papers,
+                rag_evidence=rag_evidence,
                 output_language=task.language
             )
             task.progress = 85

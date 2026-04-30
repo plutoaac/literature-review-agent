@@ -62,7 +62,7 @@
         <div class="panel-toolbar">
           <div>
             <h2>交付内容</h2>
-            <p>正文、证据论文、结构化分析与引用校验</p>
+            <p>正文、RAG 证据链、证据论文、结构化分析与引用校验</p>
           </div>
           <el-button type="primary" @click="handleExport" :loading="exporting">
             <el-icon><Download /></el-icon>
@@ -88,6 +88,64 @@
                 </p>
               </template>
             </article>
+          </el-tab-pane>
+
+          <el-tab-pane label="RAG 证据链" name="rag">
+            <div class="rag-overview">
+              <div>
+                <span>召回章节</span>
+                <strong>{{ ragEvidence.length }}</strong>
+              </div>
+              <div>
+                <span>证据片段</span>
+                <strong>{{ ragEvidenceCount }}</strong>
+              </div>
+              <div>
+                <span>生成策略</span>
+                <strong>Evidence-first</strong>
+              </div>
+            </div>
+
+            <el-empty
+              v-if="ragEvidence.length === 0"
+              description="暂无 RAG 证据链"
+            />
+
+            <div v-else class="rag-list">
+              <section
+                v-for="section in ragEvidence"
+                :key="section.section"
+                class="rag-section"
+              >
+                <div class="rag-section-head">
+                  <div>
+                    <span class="rag-label">Review section</span>
+                    <h3>{{ section.section }}</h3>
+                  </div>
+                  <el-tag effect="plain">{{ section.evidence?.length || 0 }} 条证据</el-tag>
+                </div>
+
+                <div class="rag-evidence-grid">
+                  <article
+                    v-for="item in section.evidence"
+                    :key="item.chunk_id"
+                    class="rag-evidence-card"
+                  >
+                    <div class="evidence-meta">
+                      <el-tag size="small" type="success" effect="plain">
+                        {{ item.paper_id }}
+                      </el-tag>
+                      <el-tag size="small" type="info" effect="plain">
+                        {{ formatEvidenceSection(item.section) }}
+                      </el-tag>
+                      <span>{{ formatScore(item.score) }}</span>
+                    </div>
+                    <h4>{{ item.title }}</h4>
+                    <p>{{ item.text }}</p>
+                  </article>
+                </div>
+              </section>
+            </div>
           </el-tab-pane>
 
           <el-tab-pane label="论文证据" name="papers">
@@ -258,6 +316,14 @@ const sourceSummary = computed(() => {
   return Object.entries(counts).map(([source, count]) => ({ source, count }))
 })
 
+const ragEvidence = computed(() => result.value?.rag_evidence || [])
+
+const ragEvidenceCount = computed(() => {
+  return ragEvidence.value.reduce((total, section) => {
+    return total + (section.evidence?.length || 0)
+  }, 0)
+})
+
 const summaryCards = computed(() => {
   const papers = result.value?.papers || []
   const analyses = result.value?.analyses || []
@@ -275,14 +341,14 @@ const summaryCards = computed(() => {
       detail: '问题、方法、贡献'
     },
     {
+      label: 'RAG 证据',
+      value: ragEvidenceCount.value,
+      detail: `${ragEvidence.value.length || 0} 个章节召回`
+    },
+    {
       label: '有效引用',
       value: valid.length,
       detail: invalid.length ? `${invalid.length} 个待核查` : '引用校验通过'
-    },
-    {
-      label: '任务状态',
-      value: statusText.value,
-      detail: currentPhase.value || 'Done'
     }
   ]
 })
@@ -365,6 +431,17 @@ const sourceTagType = (source) => {
 const formatScore = (score) => {
   if (score === null || score === undefined) return '-'
   return Number(score).toFixed(3)
+}
+
+const formatEvidenceSection = (section) => {
+  const map = {
+    abstract: '摘要',
+    problem: '问题',
+    method: '方法',
+    contribution: '贡献',
+    limitation: '局限'
+  }
+  return map[section] || section || '证据'
 }
 
 const fetchStatus = async () => {
@@ -642,6 +719,101 @@ onUnmounted(() => {
   margin-bottom: 14px;
 }
 
+.rag-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.rag-overview div,
+.rag-section,
+.rag-evidence-card {
+  border: 1px solid #e5eaf3;
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.rag-overview div {
+  padding: 14px 16px;
+}
+
+.rag-overview span,
+.rag-label {
+  display: block;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.rag-overview strong {
+  display: block;
+  margin-top: 6px;
+  color: #111827;
+  font-size: 22px;
+}
+
+.rag-list {
+  display: grid;
+  gap: 14px;
+}
+
+.rag-section {
+  padding: 16px;
+}
+
+.rag-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.rag-section h3 {
+  margin: 5px 0 0;
+  color: #111827;
+  font-size: 17px;
+}
+
+.rag-evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.rag-evidence-card {
+  padding: 14px;
+}
+
+.evidence-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 9px;
+}
+
+.evidence-meta span {
+  color: #667085;
+  font-size: 12px;
+}
+
+.rag-evidence-card h4 {
+  margin: 0 0 8px;
+  color: #111827;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.rag-evidence-card p {
+  margin: 0;
+  color: #475467;
+  line-height: 1.65;
+  font-size: 13px;
+}
+
 .source-strip div {
   display: flex;
   align-items: center;
@@ -720,6 +892,11 @@ onUnmounted(() => {
 
   .summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rag-overview,
+  .rag-evidence-grid {
+    grid-template-columns: 1fr;
   }
 
   .document-view {

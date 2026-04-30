@@ -1,6 +1,7 @@
 import logging
 from typing import List, Dict
 from app.services.llm import get_llm_client, LLMProviderError
+from app.services.rag import get_rag_service
 
 logger = logging.getLogger(__name__)
 
@@ -8,19 +9,28 @@ logger = logging.getLogger(__name__)
 class WriteAgent:
     def __init__(self):
         self.llm = get_llm_client()
+        self.rag_service = get_rag_service()
 
     async def run(
         self,
         outline: Dict,
         categories: List[Dict],
         ranked_papers: List[Dict],
+        rag_evidence: List[Dict],
         output_language: str
     ) -> str:
         logger.info("WriteAgent: Generating review content")
 
         valid_ids = [f"paper_{p.get('paper_index', i+1)}" for i, p in enumerate(ranked_papers)]
 
-        prompt = self._build_prompt(outline, categories, ranked_papers, valid_ids, output_language)
+        prompt = self._build_prompt(
+            outline,
+            categories,
+            ranked_papers,
+            valid_ids,
+            rag_evidence,
+            output_language
+        )
 
         try:
             content = await self.llm.complete([
@@ -39,6 +49,7 @@ class WriteAgent:
         categories: List[Dict],
         ranked_papers: List[Dict],
         valid_ids: List[str],
+        rag_evidence: List[Dict],
         output_language: str
     ) -> str:
         lang_instruction = (
@@ -60,16 +71,18 @@ class WriteAgent:
             papers_info.append(f"[{idx}] {title} - {authors}, {year}\n   Abstract: {abstract}...")
 
         papers_info_text = "\n\n".join(papers_info)
+        evidence_text = self.rag_service.format_for_prompt(rag_evidence)
 
         return f"""{lang_instruction}
 
-你是一个学术综述写作助手。请根据以下大纲和文献信息，撰写一篇完整的学术综述。
+你是一个学术综述写作助手。请根据以下大纲、文献信息和 RAG 证据片段，撰写一篇完整的学术综述。
 
 **重要约束**：
 1. 只能使用以下 paper_id 进行引用：{valid_ids}
 2. 禁止凭空创造任何不存在的引用
 3. 引用格式：[paper_1]、[paper_2] 等
 4. 每个引用都必须是真实存在于下方文献列表中的论文
+5. 优先依据 RAG 证据片段进行总结；证据不足时可以做谨慎概括，但不能编造具体实验结论
 
 ---
 
@@ -83,10 +96,15 @@ class WriteAgent:
 
 ---
 
+RAG 证据片段：
+{evidence_text}
+
+---
+
 请撰写综述正文，遵循以下要求：
 1. 严格按照上述大纲结构
 2. 在适当位置使用文献引用，格式为 [paper_X]
-3. 每段话尽量综合多篇文献的内容
+3. 每段话尽量综合多篇文献的内容，并优先覆盖上方证据片段
 4. 语言要学术化、连贯
 5. 不要列出参考文献（在最后单独生成）
 

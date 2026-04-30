@@ -66,6 +66,7 @@ class ReviewResult(BaseModel):
     citation_report: Optional[str] = None
     papers: Optional[List[PaperInfo]] = None
     analyses: Optional[List[AnalysisInfo]] = None
+    rag_evidence: Optional[List[Dict[str, Any]]] = None
     error_message: Optional[str] = None
 
     class Config:

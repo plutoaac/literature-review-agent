@@ -14,7 +14,8 @@ class MarkdownExporter:
         outline: Optional[Dict],
         content: Optional[str],
         valid_citations: List[str],
-        citation_report: str
+        citation_report: str,
+        rag_evidence: Optional[List[Dict]] = None
     ) -> str:
         sections = []
 
@@ -33,6 +34,9 @@ class MarkdownExporter:
         sections.append("\n## 综述正文\n")
         if content:
             sections.append(content)
+
+        sections.append("\n## RAG 证据链\n")
+        sections.append(self._render_rag_evidence(rag_evidence or []))
 
         sections.append("\n## 参考文献\n")
         sections.append(self._generate_reference_list(papers))
@@ -116,6 +120,22 @@ class MarkdownExporter:
             lines.append(f"[{paper_idx}] {title} - {authors}, {year}")
 
         return "\n".join(lines) if lines else "*暂无参考文献*"
+
+    def _render_rag_evidence(self, rag_evidence: List[Dict]) -> str:
+        if not rag_evidence:
+            return "*暂无 RAG 证据链*"
+
+        sections = []
+        for section in rag_evidence:
+            sections.append(f"### {section.get('section', '未命名章节')}")
+            for item in section.get("evidence", []):
+                paper_id = item.get("paper_id", "paper_?")
+                title = item.get("title", "Untitled")
+                chunk_type = item.get("section", "evidence")
+                text = item.get("text", "")
+                sections.append(f"- **{paper_id} / {chunk_type} / {title}**：{text}")
+
+        return "\n".join(sections)
 
 
 def get_exporter() -> MarkdownExporter:
