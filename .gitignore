@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Environments and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# Backend runtime
+backend/venv/
+backend/.venv/
+backend/*.log
+*.log
+*.db
+*.sqlite
+*.sqlite3
+
+# Frontend dependencies/build
+frontend/node_modules/
+frontend/dist/
+node_modules/
+dist/
+
+# IDE/system
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
