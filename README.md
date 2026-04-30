@@ -14,6 +14,20 @@
 - 引用编号校验
 - Markdown 导出
 
+## 界面展示
+
+### 工作台首页
+
+![工作台首页](docs/images/workspace-home.png)
+
+### 任务执行进度
+
+![任务执行进度](docs/images/task-progress.png)
+
+### 综述生成结果
+
+![综述生成结果](docs/images/review-result.png)
+
 ## 技术栈
 
 ### 后端
