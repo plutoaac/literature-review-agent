@@ -1,8 +1,8 @@
 import asyncio
 import logging
-import json
 from typing import List, Dict
 from app.services.llm import get_llm_client, LLMProviderError
+from app.utils.json_parser import JsonExtractionError, extract_json_object
 
 logger = logging.getLogger(__name__)
 
@@ -91,12 +91,8 @@ class ReadAgent:
 
     def _parse_response(self, response: str) -> Dict:
         try:
-            for line in response.strip().split('\n'):
-                line = line.strip()
-                if line.startswith('{') and line.endswith('}'):
-                    return json.loads(line)
-            return json.loads(response.strip())
-        except Exception as e:
+            return extract_json_object(response)
+        except JsonExtractionError as e:
             logger.warning(f"Failed to parse analysis response: {e}")
             return {}
 

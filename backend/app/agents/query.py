@@ -1,6 +1,7 @@
 import logging
 from typing import List, Dict
 from app.services.llm import get_llm_client, LLMProviderError
+from app.utils.json_parser import JsonExtractionError, extract_json_object
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ class QueryAgent:
                 {"role": "user", "content": prompt}
             ])
 
-            return self._parse_response(response)
+            return self._parse_response(response, topic)
         except LLMProviderError as e:
             logger.error(f"QueryAgent LLM error: {e}")
             return self._fallback_response(topic)
@@ -64,17 +65,12 @@ class QueryAgent:
 只输出JSON，不要有其他内容。
 """
 
-    def _parse_response(self, response: str) -> Dict:
+    def _parse_response(self, response: str, fallback_topic: str) -> Dict:
         try:
-            import json
-            for line in response.strip().split('\n'):
-                line = line.strip()
-                if line.startswith('{') and line.endswith('}'):
-                    return json.loads(line)
-            return json.loads(response.strip())
-        except Exception as e:
+            return extract_json_object(response)
+        except JsonExtractionError as e:
             logger.warning(f"Failed to parse LLM response: {e}")
-            return self._fallback_response("")
+            return self._fallback_response(fallback_topic)
 
     def _fallback_response(self, topic: str) -> Dict:
         keywords = [

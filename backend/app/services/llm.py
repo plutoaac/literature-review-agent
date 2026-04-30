@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from typing import Dict, List
 
 import httpx
@@ -39,6 +40,7 @@ class OpenAICompatibleChatClient:
             )
 
     async def complete(self, messages: List[Dict], **kwargs) -> str:
+        max_retries = kwargs.get("max_retries", 2)
         payload = {
             "model": self.model,
             "messages": messages,
@@ -50,23 +52,52 @@ class OpenAICompatibleChatClient:
             "Content-Type": "application/json",
         }
 
-        try:
-            async with httpx.AsyncClient(timeout=120.0) as client:
-                response = await client.post(
-                    f"{self.base_url}/chat/completions",
-                    headers=headers,
-                    json=payload,
+        last_error = None
+        retry_statuses = {429, 500, 502, 503, 504}
+
+        for attempt in range(max_retries + 1):
+            try:
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    response = await client.post(
+                        f"{self.base_url}/chat/completions",
+                        headers=headers,
+                        json=payload,
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                    return data["choices"][0]["message"]["content"]
+            except httpx.HTTPStatusError as e:
+                last_error = e
+                status_code = e.response.status_code
+                body = e.response.text[:300]
+                logger.warning(
+                    "%s API HTTP error %s on attempt %s/%s: %s",
+                    self.provider,
+                    status_code,
+                    attempt + 1,
+                    max_retries + 1,
+                    body,
                 )
-                response.raise_for_status()
-                data = response.json()
-                return data["choices"][0]["message"]["content"]
-        except httpx.HTTPStatusError as e:
-            body = e.response.text[:300]
-            logger.error("%s API HTTP error %s: %s", self.provider, e.response.status_code, body)
-            raise LLMProviderError(f"{self.provider} API error: {e.response.status_code}")
-        except Exception as e:
-            logger.error("%s API error: %s", self.provider, e)
-            raise LLMProviderError(f"{self.provider} API error: {e}")
+                if status_code not in retry_statuses or attempt >= max_retries:
+                    raise LLMProviderError(f"{self.provider} API error: {status_code}")
+            except (httpx.TimeoutException, httpx.RequestError) as e:
+                last_error = e
+                logger.warning(
+                    "%s API request failed on attempt %s/%s: %s",
+                    self.provider,
+                    attempt + 1,
+                    max_retries + 1,
+                    e,
+                )
+                if attempt >= max_retries:
+                    raise LLMProviderError(f"{self.provider} API error: {e}")
+            except Exception as e:
+                logger.error("%s API error: %s", self.provider, e)
+                raise LLMProviderError(f"{self.provider} API error: {e}")
+
+            await asyncio.sleep(min(2 ** attempt, 8))
+
+        raise LLMProviderError(f"{self.provider} API error: {last_error}")
 
 
 def get_llm_client() -> OpenAICompatibleChatClient:
