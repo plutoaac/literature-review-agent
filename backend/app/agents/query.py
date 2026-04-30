@@ -51,18 +51,18 @@ class QueryAgent:
 
 请分析这个主题，输出以下信息：
 
-1. **搜索关键词**（search_keywords）：列出5-10个相关关键词，包括同义词和相关研究方向
-2. **搜索查询**（search_queries）：生成3-5个检索查询语句，用于学术文献检索
+1. **搜索关键词**（search_keywords）：列出5-10个相关关键词，包括中文主题对应的英文术语、同义词和相关研究方向
+2. **搜索查询**（search_queries）：生成5-8个英文检索查询语句，用于 arXiv、Semantic Scholar 等英文学术数据库检索
 3. **研究范围说明**（research_scope）：简要说明这个研究主题的范围和重点
 
 请用JSON格式输出：
 {{
-    "search_keywords": ["关键词1", "关键词2", ...],
-    "search_queries": ["查询语句1", "查询语句2", ...],
+    "search_keywords": ["English keyword 1", "English keyword 2", "中文关键词1", ...],
+    "search_queries": ["English academic query 1", "English academic query 2", ...],
     "research_scope": "范围说明..."
 }}
 
-只输出JSON，不要有其他内容。
+注意：search_queries 必须优先使用英文，不要只输出中文查询。只输出JSON，不要有其他内容。
 """
 
     def _parse_response(self, response: str, fallback_topic: str) -> Dict:
@@ -73,14 +73,33 @@ class QueryAgent:
             return self._fallback_response(fallback_topic)
 
     def _fallback_response(self, topic: str) -> Dict:
+        lower_topic = topic.lower()
         keywords = [
             topic,
-            topic.lower(),
+            lower_topic,
             topic.replace(" ", "_"),
         ]
+        search_queries = [topic, f"{topic} research", f"{topic} survey"]
+
+        if "透明物体" in topic and "深度" in topic:
+            keywords.extend([
+                "transparent object",
+                "transparent objects",
+                "depth completion",
+                "depth estimation",
+                "transparent object reconstruction",
+            ])
+            search_queries = [
+                "transparent object depth completion",
+                "depth completion for transparent objects",
+                "transparent object depth estimation",
+                "transparent object reconstruction depth",
+                "ClearGrasp transparent object depth",
+                "TransCG transparent object depth completion",
+            ]
 
         return {
             "search_keywords": keywords,
-            "search_queries": [topic, f"{topic} research", f"{topic} survey"],
+            "search_queries": search_queries,
             "research_scope": f"Research on {topic}"
         }
