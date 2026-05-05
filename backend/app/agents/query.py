@@ -1,3 +1,17 @@
+"""
+查询理解 Agent（QueryAgent）
+
+职责：分析用户输入的研究主题，扩展为多个英文搜索关键词和查询语句。
+
+工作流程：
+1. 接收用户的研究主题（中文或英文）、年份范围、输出语言
+2. 调用 LLM 分析主题，生成：
+   - search_keywords：相关关键词列表（含中英文术语、同义词）
+   - search_queries：用于学术数据库的英文检索语句
+   - research_scope：研究范围说明
+3. 如果 LLM 调用失败，使用 fallback 策略生成基础查询
+"""
+
 import logging
 from typing import List, Dict
 from app.services.llm import get_llm_client, LLMProviderError
@@ -7,8 +21,15 @@ logger = logging.getLogger(__name__)
 
 
 class QueryAgent:
-    def __init__(self):
-        self.llm = get_llm_client()
+    """查询理解 Agent：将用户主题转化为有效的学术检索查询"""
+
+    def __init__(self, llm=None):
+        """
+        Args:
+            llm: LLM 客户端实例（可选，默认从工厂函数创建）
+                 支持依赖注入，方便单元测试时传入 mock 对象
+        """
+        self.llm = llm or get_llm_client()
 
     async def run(
         self,
@@ -17,17 +38,33 @@ class QueryAgent:
         year_to: int,
         output_language: str
     ) -> Dict:
+        """
+        执行查询理解
+
+        Args:
+            topic: 用户输入的研究主题
+            year_from: 检索起始年份
+            year_to: 检索结束年份
+            output_language: 输出语言（"zh" 或 "en"）
+
+        Returns:
+            包含 search_keywords、search_queries、research_scope 的字典
+        """
         logger.info(f"QueryAgent: Analyzing topic '{topic}'")
 
+        # 构建 LLM 提示词
         prompt = self._build_prompt(topic, year_from, year_to, output_language)
 
         try:
+            # 调用 LLM 获取响应
             response = await self.llm.complete([
                 {"role": "user", "content": prompt}
             ])
 
+            # 解析 LLM 返回的 JSON
             return self._parse_response(response, topic)
         except LLMProviderError as e:
+            # LLM 调用失败时，使用 fallback 策略（基于规则生成基础查询）
             logger.error(f"QueryAgent LLM error: {e}")
             return self._fallback_response(topic)
 
@@ -38,6 +75,12 @@ class QueryAgent:
         year_to: int,
         output_language: str
     ) -> str:
+        """
+        构建发送给 LLM 的提示词
+
+        提示词要求 LLM 以 JSON 格式输出搜索关键词、查询语句和范围说明。
+        关键点：要求 search_queries 优先使用英文（因为 arXiv 和 Semantic Scholar 主要索引英文文献）。
+        """
         lang_instruction = (
             "请用中文回答" if output_language == "zh" else "Please answer in English"
         )
@@ -66,6 +109,7 @@ class QueryAgent:
 """
 
     def _parse_response(self, response: str, fallback_topic: str) -> Dict:
+        """解析 LLM 返回的 JSON 响应，失败时使用 fallback"""
         try:
             return extract_json_object(response)
         except JsonExtractionError as e:
@@ -73,6 +117,12 @@ class QueryAgent:
             return self._fallback_response(fallback_topic)
 
     def _fallback_response(self, topic: str) -> Dict:
+        """
+        Fallback 策略：当 LLM 调用失败时，基于规则生成基础查询
+
+        对于常见的中文研究主题（如"透明物体深度补全"），使用预定义的英文关键词。
+        其他主题则使用简单的字符串变换（小写、下划线替换等）。
+        """
         lower_topic = topic.lower()
         keywords = [
             topic,
@@ -81,6 +131,7 @@ class QueryAgent:
         ]
         search_queries = [topic, f"{topic} research", f"{topic} survey"]
 
+        # 针对"透明物体+深度"主题的硬编码优化（课程设计演示用）
         if "透明物体" in topic and "深度" in topic:
             keywords.extend([
                 "transparent object",

@@ -1,5 +1,18 @@
+<!--
+  Home.vue — 任务创建页面（工作台首页）
+
+  页面结构：
+  1. 顶部导航栏：品牌标识 + 技术标签
+  2. 主内容区（左右两栏布局）：
+     - 左栏：任务创建表单（研究主题、年份、论文数、语言）
+     - 右栏：Agent 执行链路可视化 + 数据源信息卡片
+
+  交互流程：
+  1. 用户填写表单 → 2. 点击"开始生成综述" → 3. 调用 createTask API → 4. 调用 runTask API → 5. 跳转到结果页
+-->
 <template>
   <div class="workspace">
+    <!-- ========== 顶部导航栏 ========== -->
     <header class="topbar">
       <div class="brand">
         <div class="brand-mark">
@@ -11,6 +24,7 @@
         </div>
       </div>
 
+      <!-- 技术栈标签 -->
       <div class="runtime-tags">
         <el-tag effect="plain" type="success">DeepSeek</el-tag>
         <el-tag effect="plain">Semantic Scholar</el-tag>
@@ -18,7 +32,9 @@
       </div>
     </header>
 
+    <!-- ========== 主内容区（左右两栏） ========== -->
     <main class="workspace-grid">
+      <!-- ===== 左栏：任务创建面板 ===== -->
       <section class="task-panel">
         <div class="section-heading">
           <div>
@@ -28,6 +44,7 @@
           </div>
         </div>
 
+        <!-- 功能亮点卡片（3 个） -->
         <div class="capability-strip">
           <div v-for="item in capabilities" :key="item.title" class="capability-card">
             <el-icon><component :is="item.icon" /></el-icon>
@@ -38,6 +55,7 @@
           </div>
         </div>
 
+        <!-- 任务创建表单 -->
         <el-form
           ref="formRef"
           :model="form"
@@ -46,6 +64,7 @@
           size="large"
           class="task-form"
         >
+          <!-- 研究主题输入 -->
           <el-form-item label="研究主题" prop="topic">
             <el-input
               v-model="form.topic"
@@ -55,6 +74,7 @@
             />
           </el-form-item>
 
+          <!-- 示例主题按钮 -->
           <div class="examples">
             <span>示例主题</span>
             <el-button
@@ -69,6 +89,7 @@
             </el-button>
           </div>
 
+          <!-- 年份范围 + 输出语言（同行排列） -->
           <div class="form-row">
             <el-form-item label="年份范围" prop="yearRange">
               <el-date-picker
@@ -93,6 +114,7 @@
             </el-form-item>
           </div>
 
+          <!-- 论文数量选择（预设按钮 + 数字输入框） -->
           <el-form-item label="论文数量" prop="paperLimit">
             <div class="paper-count-control">
               <div class="preset-grid">
@@ -121,6 +143,7 @@
             <p class="field-hint">建议课堂演示选择 10-15 篇，速度和结果质量更均衡。</p>
           </el-form-item>
 
+          <!-- 提交按钮 -->
           <div class="submit-row">
             <div class="submit-note">
               <strong>预计流程</strong>
@@ -139,7 +162,9 @@
         </el-form>
       </section>
 
+      <!-- ===== 右栏：信息面板 ===== -->
       <aside class="insight-panel">
+        <!-- Agent 执行链路可视化 -->
         <section class="panel-block flow-panel">
           <div class="panel-title">
             <el-icon><Connection /></el-icon>
@@ -156,6 +181,7 @@
           </div>
         </section>
 
+        <!-- 数据源和技术信息卡片 -->
         <section class="panel-block source-panel">
           <div class="panel-title">
             <el-icon><DataAnalysis /></el-icon>
@@ -175,34 +201,48 @@
 </template>
 
 <script setup>
+/**
+ * 组合式 API：使用 Vue 3 <script setup> 语法
+ *
+ * 状态管理：
+ * - formRef: 表单引用（用于调用 validate 方法）
+ * - loading: 加载状态（防止重复提交）
+ * - form: 表单数据（响应式对象）
+ * - rules: 表单验证规则
+ */
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { createTask, runTask } from '../api.js'
 
 const router = useRouter()
-const formRef = ref(null)
-const loading = ref(false)
+const formRef = ref(null)     // 表单 DOM 引用
+const loading = ref(false)    // 提交加载状态
 
+// 示例主题列表
 const examples = [
   'Retrieval Augmented Generation',
   'LLM Hallucination Detection',
   'Multimodal Large Language Models'
 ]
 
+// 语言选项
 const languageOptions = [
   { label: '中文', value: 'zh' },
   { label: 'English', value: 'en' }
 ]
 
+// 论文数量预设值
 const paperPresets = [5, 10, 15, 20, 30]
 
+// 功能亮点数据
 const capabilities = [
   { icon: 'Search', title: '双源检索', desc: '覆盖论文摘要与引用信息' },
   { icon: 'DataAnalysis', title: '相关性排序', desc: '关键词、引用数与年份综合评分' },
   { icon: 'Document', title: '引用校验', desc: '约束生成内容只引用候选论文' }
 ]
 
+// Agent 执行链路步骤
 const pipeline = [
   { index: '01', name: 'Query', desc: '扩展主题关键词与检索式' },
   { index: '02', name: 'Search', desc: '检索并合并学术论文' },
@@ -211,6 +251,7 @@ const pipeline = [
   { index: '05', name: 'Write', desc: '生成综述并校验引用' }
 ]
 
+// 数据源信息卡片
 const sourceCards = [
   { name: '文献来源', value: '2', desc: 'Semantic Scholar + arXiv' },
   { name: '生成模型', value: 'DeepSeek', desc: 'OpenAI-compatible Chat API' },
@@ -218,13 +259,15 @@ const sourceCards = [
   { name: '排序方式', value: 'Hybrid', desc: '轻量可解释评分策略' }
 ]
 
+// 表单数据（响应式对象）
 const form = reactive({
   topic: '',
-  yearRange: ['2020', '2024'],
-  paperLimit: 10,
-  language: 'zh'
+  yearRange: ['2020', '2024'],  // 默认年份范围
+  paperLimit: 10,               // 默认 10 篇
+  language: 'zh'                // 默认中文
 })
 
+// 表单验证规则（Element Plus 自动校验）
 const rules = {
   topic: [
     { required: true, message: '请输入研究主题', trigger: 'blur' },
@@ -241,21 +284,31 @@ const rules = {
   ]
 }
 
+// 使用示例主题
 const useExample = (topic) => {
   form.topic = topic
 }
 
+/**
+ * 提交表单：创建任务并启动工作流
+ *
+ * 流程：
+ * 1. 表单验证 → 2. 调用 createTask API → 3. 调用 runTask API → 4. 跳转结果页
+ */
 const handleSubmit = async () => {
   if (!formRef.value) return
 
+  // Element Plus 表单验证
   await formRef.value.validate(async (valid) => {
-    if (!valid) return
+    if (!valid) return  // 验证失败，不继续
 
     loading.value = true
 
     try {
+      // 解析年份范围
       const [yearFrom, yearTo] = form.yearRange
 
+      // 构建请求参数
       const taskData = {
         topic: form.topic,
         year_from: parseInt(yearFrom),
@@ -264,16 +317,20 @@ const handleSubmit = async () => {
         language: form.language
       }
 
+      // 第一步：创建任务（获取 taskId）
       const response = await createTask(taskData)
       const taskId = response.data.task_id
 
       ElMessage.success('任务已创建，正在启动工作流')
 
+      // 第二步：启动任务执行（后台异步运行）
       await runTask(taskId)
 
+      // 第三步：跳转到结果页
       router.push(`/result/${taskId}`)
     } catch (error) {
       console.error('创建任务失败:', error)
+      // 优先显示后端返回的错误信息
       const message = error?.response?.data?.detail || '创建任务失败，请检查后端服务和配置'
       ElMessage.error(message)
     } finally {
@@ -284,9 +341,11 @@ const handleSubmit = async () => {
 </script>
 
 <style scoped>
+/* ========== 页面整体布局 ========== */
 .workspace {
   min-height: 100vh;
   padding: 28px;
+  /* 网格点背景 + 渐变底色 */
   background:
     linear-gradient(rgba(15, 118, 110, 0.035) 1px, transparent 1px),
     linear-gradient(90deg, rgba(15, 118, 110, 0.035) 1px, transparent 1px),
@@ -295,6 +354,7 @@ const handleSubmit = async () => {
   color: #172033;
 }
 
+/* ========== 顶部导航栏 ========== */
 .topbar {
   max-width: 1180px;
   margin: 0 auto 24px;
@@ -342,6 +402,7 @@ const handleSubmit = async () => {
   gap: 8px;
 }
 
+/* ========== 主内容区（左右两栏） ========== */
 .workspace-grid {
   max-width: 1180px;
   margin: 0 auto;
@@ -363,6 +424,7 @@ const handleSubmit = async () => {
   padding: 28px;
 }
 
+/* ========== 标题区域 ========== */
 .section-heading {
   margin-bottom: 18px;
 }
@@ -393,6 +455,7 @@ const handleSubmit = async () => {
   font-size: 14px;
 }
 
+/* ========== 功能亮点卡片 ========== */
 .capability-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -433,6 +496,7 @@ const handleSubmit = async () => {
   line-height: 1.45;
 }
 
+/* ========== 表单样式 ========== */
 .task-form :deep(.el-form-item__label) {
   font-weight: 700;
   color: #344054;
@@ -534,6 +598,7 @@ const handleSubmit = async () => {
   gap: 6px;
 }
 
+/* ========== 右栏信息面板 ========== */
 .insight-panel {
   display: grid;
   gap: 16px;
@@ -555,6 +620,7 @@ const handleSubmit = async () => {
   font-size: 20px;
 }
 
+/* ========== Agent 执行链路 ========== */
 .pipeline {
   display: grid;
   gap: 14px;
@@ -592,6 +658,7 @@ const handleSubmit = async () => {
   line-height: 1.55;
 }
 
+/* ========== 数据源信息卡片 ========== */
 .source-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -628,6 +695,7 @@ const handleSubmit = async () => {
   line-height: 1.45;
 }
 
+/* ========== 响应式布局 ========== */
 @media (max-width: 980px) {
   .workspace {
     padding: 18px;
