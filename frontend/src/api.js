@@ -42,6 +42,15 @@ export const createTask = (data) => {
 }
 
 /**
+ * 获取最近任务历史
+ * @param {number} limit - 最大返回数量
+ * @returns {Promise} 最近任务列表
+ */
+export const getTaskHistory = (limit = 20) => {
+  return api.get('/tasks', { params: { limit } })
+}
+
+/**
  * 查询任务状态
  * @param {string} taskId - 任务 UUID
  * @returns {Promise} 包含 status、progress、current_phase 的响应

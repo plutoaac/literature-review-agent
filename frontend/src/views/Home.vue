@@ -196,6 +196,46 @@
             </div>
           </div>
         </section>
+
+        <!-- 历史任务记录 -->
+        <section class="panel-block history-panel">
+          <div class="panel-title history-title">
+            <div class="history-title-main">
+              <el-icon><Clock /></el-icon>
+              <h3>历史任务</h3>
+            </div>
+            <el-button size="small" plain :loading="historyLoading" @click="loadHistory">
+              <el-icon><Refresh /></el-icon>
+              刷新
+            </el-button>
+          </div>
+
+          <el-empty
+            v-if="!historyLoading && historyTasks.length === 0"
+            description="暂无历史任务"
+          />
+
+          <div v-else class="history-list">
+            <button
+              v-for="task in historyTasks"
+              :key="task.task_id"
+              type="button"
+              class="history-item"
+              @click="openHistoryTask(task.task_id)"
+            >
+              <div class="history-main">
+                <strong>{{ task.topic }}</strong>
+                <span>{{ formatDate(task.created_at) }} · {{ task.paper_limit }} 篇 · {{ task.language === 'zh' ? '中文' : 'English' }}</span>
+              </div>
+              <div class="history-side">
+                <el-tag :type="historyStatusType(task.status)" effect="plain" size="small">
+                  {{ historyStatusText(task.status) }}
+                </el-tag>
+                <span>{{ task.progress || 0 }}%</span>
+              </div>
+            </button>
+          </div>
+        </section>
       </aside>
     </main>
   </div>
@@ -211,14 +251,16 @@
  * - form: 表单数据（响应式对象）
  * - rules: 表单验证规则
  */
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { createTask, runTask } from '../api.js'
+import { createTask, runTask, getTaskHistory } from '../api.js'
 
 const router = useRouter()
 const formRef = ref(null)     // 表单 DOM 引用
 const loading = ref(false)    // 提交加载状态
+const historyTasks = ref([])
+const historyLoading = ref(false)
 
 // 示例主题列表
 const examples = [
@@ -290,6 +332,55 @@ const useExample = (topic) => {
   form.topic = topic
 }
 
+const loadHistory = async () => {
+  historyLoading.value = true
+  try {
+    const response = await getTaskHistory(12)
+    historyTasks.value = response.data || []
+  } catch (error) {
+    console.error('获取历史任务失败:', error)
+    ElMessage.error('获取历史任务失败')
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+const openHistoryTask = (taskId) => {
+  router.push(`/result/${taskId}`)
+}
+
+const historyStatusText = (status) => {
+  const map = {
+    pending: '等待',
+    running: '运行中',
+    completed: '已完成',
+    failed: '失败'
+  }
+  return map[status] || status
+}
+
+const historyStatusType = (status) => {
+  const map = {
+    pending: 'info',
+    running: 'warning',
+    completed: 'success',
+    failed: 'danger'
+  }
+  return map[status] || 'info'
+}
+
+const formatDate = (value) => {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  return date.toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
 /**
  * 提交表单：创建任务并启动工作流
  *
@@ -339,6 +430,10 @@ const handleSubmit = async () => {
     }
   })
 }
+
+onMounted(() => {
+  loadHistory()
+})
 </script>
 
 <style scoped>
@@ -696,6 +791,75 @@ const handleSubmit = async () => {
   line-height: 1.45;
 }
 
+/* ========== 历史任务记录 ========== */
+.history-title {
+  justify-content: space-between;
+}
+
+.history-title-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.history-list {
+  display: grid;
+  gap: 10px;
+}
+
+.history-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e8eef6;
+  border-radius: 8px;
+  background: #fbfcfe;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.history-item:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+}
+
+.history-main {
+  min-width: 0;
+}
+
+.history-main strong {
+  display: block;
+  overflow: hidden;
+  color: #111827;
+  font-size: 13px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-main span {
+  display: block;
+  margin-top: 4px;
+  color: #667085;
+  font-size: 12px;
+}
+
+.history-side {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+}
+
+.history-side > span {
+  color: #667085;
+  font-size: 12px;
+}
+
 /* ========== 响应式布局 ========== */
 @media (max-width: 980px) {
   .workspace {
@@ -720,6 +884,14 @@ const handleSubmit = async () => {
 
   .task-panel {
     padding: 20px;
+  }
+
+  .history-item {
+    grid-template-columns: 1fr;
+  }
+
+  .history-side {
+    justify-items: start;
   }
 }
 

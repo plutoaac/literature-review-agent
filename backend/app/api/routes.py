@@ -24,6 +24,7 @@ from app.schemas import (
     TaskCreate,
     TaskResponse,
     TaskStatusResponse,
+    TaskHistoryItem,
     ReviewResult,
     PaperInfo,
     AnalysisInfo,
@@ -64,6 +65,48 @@ async def run_workflow_task(task_id: str):
             db.commit()
     finally:
         db.close()  # 确保关闭数据库会话
+
+
+@router.get("", response_model=list[TaskHistoryItem])
+async def list_tasks(
+    limit: int = 20,
+    db: Session = Depends(get_db)
+):
+    """获取最近任务列表，用于首页历史记录面板。"""
+    limit = max(1, min(limit, 50))
+    tasks = (
+        db.query(Task)
+        .order_by(Task.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    task_ids = [task.id for task in tasks]
+    review_task_ids = set()
+    if task_ids:
+        review_task_ids = {
+            task_id
+            for (task_id,) in db.query(Review.task_id)
+            .filter(Review.task_id.in_(task_ids))
+            .all()
+        }
+
+    return [
+        TaskHistoryItem(
+            task_id=task.id,
+            topic=task.topic,
+            status=task.status,
+            current_phase=task.current_phase,
+            progress=task.progress,
+            paper_limit=task.paper_limit,
+            language=task.language,
+            error_message=task.error_message,
+            created_at=task.created_at,
+            updated_at=task.updated_at,
+            has_result=task.id in review_task_ids,
+        )
+        for task in tasks
+    ]
 
 
 @router.post("", response_model=TaskResponse)

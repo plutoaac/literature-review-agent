@@ -45,6 +45,24 @@ class TaskStatusResponse(BaseModel):
         from_attributes = True
 
 
+class TaskHistoryItem(BaseModel):
+    """历史任务列表项"""
+    task_id: str
+    topic: str
+    status: str
+    current_phase: Optional[str] = None
+    progress: int = 0
+    paper_limit: int
+    language: str
+    error_message: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    has_result: bool = False
+
+    class Config:
+        from_attributes = True
+
+
 class PaperInfo(BaseModel):
     """单篇论文的基本信息"""
     paper_index: int                           # 论文在排序结果中的编号（从 1 开始）
