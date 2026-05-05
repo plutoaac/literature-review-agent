@@ -150,6 +150,62 @@ async def create_task(
     )
 
 
+@router.post("/{task_id}/cancel", response_model=MessageResponse)
+async def cancel_task(
+    task_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    手动终止任务。
+
+    FastAPI BackgroundTasks 不能直接杀掉已经运行中的协程，这里采用可解释的课程设计实现：
+    将任务标记为 failed/Terminated，workflow 会在阶段边界检查该状态并停止继续写入结果。
+    """
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    if task.status not in {"pending", "running"}:
+        raise HTTPException(status_code=400, detail="Only pending or running tasks can be terminated")
+
+    task.status = "failed"
+    task.current_phase = "Terminated"
+    task.error_message = "任务已由用户手动终止。"
+    db.commit()
+
+    return MessageResponse(
+        message="Task terminated",
+        task_id=task_id
+    )
+
+
+@router.delete("/{task_id}", response_model=MessageResponse)
+async def delete_task(
+    task_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    删除历史任务。
+
+    删除 Task 时会通过 ORM cascade 清理关联论文、分析结果和综述结果。
+    正在运行中的任务需要先终止，避免后台 workflow 仍在写入数据。
+    """
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    if task.status == "running":
+        raise HTTPException(status_code=400, detail="Running task must be terminated before deletion")
+
+    db.delete(task)
+    db.commit()
+
+    return MessageResponse(
+        message="Task deleted",
+        task_id=task_id
+    )
+
+
 @router.get("/{task_id}", response_model=TaskStatusResponse)
 async def get_task_status(
     task_id: str,

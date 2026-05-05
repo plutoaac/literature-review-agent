@@ -69,6 +69,24 @@ export const runTask = (taskId) => {
 }
 
 /**
+ * 手动终止等待中或运行中的任务
+ * @param {string} taskId - 任务 UUID
+ * @returns {Promise} 终止确认
+ */
+export const cancelTask = (taskId) => {
+  return api.post(`/tasks/${taskId}/cancel`)
+}
+
+/**
+ * 删除历史任务及其关联结果
+ * @param {string} taskId - 任务 UUID
+ * @returns {Promise} 删除确认
+ */
+export const deleteTask = (taskId) => {
+  return api.delete(`/tasks/${taskId}`)
+}
+
+/**
  * 获取综述结果（任务完成后调用）
  * @param {string} taskId - 任务 UUID
  * @returns {Promise} 包含 papers、analyses、content、rag_evidence 等的完整结果

@@ -216,24 +216,52 @@
           />
 
           <div v-else class="history-list">
-            <button
+            <div
               v-for="task in historyTasks"
               :key="task.task_id"
-              type="button"
               class="history-item"
+              role="button"
+              tabindex="0"
               @click="openHistoryTask(task.task_id)"
+              @keydown.enter="openHistoryTask(task.task_id)"
             >
               <div class="history-main">
                 <strong>{{ task.topic }}</strong>
                 <span>{{ formatDate(task.created_at) }} · {{ task.paper_limit }} 篇 · {{ task.language === 'zh' ? '中文' : 'English' }}</span>
               </div>
               <div class="history-side">
-                <el-tag :type="historyStatusType(task.status)" effect="plain" size="small">
-                  {{ historyStatusText(task.status) }}
-                </el-tag>
-                <span>{{ task.progress || 0 }}%</span>
+                <div class="history-status">
+                  <el-tag :type="historyStatusType(task.status)" effect="plain" size="small">
+                    {{ historyStatusText(task.status) }}
+                  </el-tag>
+                  <span>{{ task.progress || 0 }}%</span>
+                </div>
+                <div class="history-actions">
+                  <el-button
+                    v-if="canTerminateTask(task)"
+                    size="small"
+                    text
+                    type="warning"
+                    :loading="historyActionId === task.task_id"
+                    @click.stop="terminateHistoryTask(task)"
+                  >
+                    <el-icon><CloseBold /></el-icon>
+                    终止
+                  </el-button>
+                  <el-button
+                    size="small"
+                    text
+                    type="danger"
+                    :disabled="task.status === 'running'"
+                    :loading="historyActionId === task.task_id"
+                    @click.stop="deleteHistoryTask(task)"
+                  >
+                    <el-icon><Delete /></el-icon>
+                    删除
+                  </el-button>
+                </div>
               </div>
-            </button>
+            </div>
           </div>
         </section>
       </aside>
@@ -253,14 +281,15 @@
  */
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { createTask, runTask, getTaskHistory } from '../api.js'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { createTask, runTask, getTaskHistory, cancelTask, deleteTask } from '../api.js'
 
 const router = useRouter()
 const formRef = ref(null)     // 表单 DOM 引用
 const loading = ref(false)    // 提交加载状态
 const historyTasks = ref([])
 const historyLoading = ref(false)
+const historyActionId = ref('')
 
 // 示例主题列表
 const examples = [
@@ -347,6 +376,64 @@ const loadHistory = async () => {
 
 const openHistoryTask = (taskId) => {
   router.push(`/result/${taskId}`)
+}
+
+const canTerminateTask = (task) => ['pending', 'running'].includes(task.status)
+
+const terminateHistoryTask = async (task) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要终止「${task.topic}」吗？当前任务会标记为失败，不再继续生成结果。`,
+      '终止任务',
+      {
+        type: 'warning',
+        confirmButtonText: '终止',
+        cancelButtonText: '取消'
+      }
+    )
+    historyActionId.value = task.task_id
+    await cancelTask(task.task_id)
+    ElMessage.success('任务已终止')
+    await loadHistory()
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      const message = error?.response?.data?.detail || '终止任务失败'
+      ElMessage.error(message)
+    }
+  } finally {
+    historyActionId.value = ''
+  }
+}
+
+const deleteHistoryTask = async (task) => {
+  if (task.status === 'running') {
+    ElMessage.warning('运行中的任务需要先终止，再删除')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除「${task.topic}」吗？相关论文、分析和综述结果会一起删除。`,
+      '删除历史任务',
+      {
+        type: 'warning',
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        confirmButtonClass: 'el-button--danger'
+      }
+    )
+    historyActionId.value = task.task_id
+    await deleteTask(task.task_id)
+    ElMessage.success('历史任务已删除')
+    await loadHistory()
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      const message = error?.response?.data?.detail || '删除任务失败'
+      ElMessage.error(message)
+    }
+  } finally {
+    historyActionId.value = ''
+  }
 }
 
 const historyStatusText = (status) => {
@@ -852,12 +939,38 @@ onMounted(() => {
 .history-side {
   display: grid;
   justify-items: end;
+  gap: 8px;
+}
+
+.history-status {
+  display: grid;
+  justify-items: end;
   gap: 5px;
 }
 
-.history-side > span {
+.history-status > span {
   color: #667085;
   font-size: 12px;
+}
+
+.history-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.history-actions .el-button {
+  min-height: 24px;
+  padding: 2px 4px;
+  font-size: 12px;
+}
+
+.history-actions .el-button + .el-button {
+  margin-left: 0;
+}
+
+.history-actions .el-icon {
+  margin-right: 2px;
 }
 
 /* ========== 响应式布局 ========== */
@@ -891,6 +1004,10 @@ onMounted(() => {
   }
 
   .history-side {
+    justify-items: start;
+  }
+
+  .history-status {
     justify-items: start;
   }
 }

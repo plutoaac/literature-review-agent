@@ -39,6 +39,11 @@ class NoPapersFoundError(Exception):
     pass
 
 
+class TaskTerminatedError(Exception):
+    """自定义异常：用户在历史任务面板手动终止任务时抛出"""
+    pass
+
+
 class ReviewWorkflow:
     """
     文献综述工作流编排器
@@ -58,6 +63,17 @@ class ReviewWorkflow:
         self.write_agent = WriteAgent()           # 综述写作 Agent
         self.citation_check_agent = CitationCheckAgent()  # 引用校验 Agent
         self.rag_service = get_rag_service()      # 轻量 RAG 服务（基于关键词召回）
+
+    def _ensure_task_active(self, task: Task, db: Session):
+        """
+        检查任务是否仍允许继续执行。
+
+        手动终止功能通过数据库状态传递信号。由于 BackgroundTasks 没有任务句柄，
+        workflow 在每个阶段边界主动刷新任务状态，发现 Terminated 后停止后续写入。
+        """
+        db.refresh(task)
+        if task.status == "failed" and task.current_phase == "Terminated":
+            raise TaskTerminatedError(task.error_message or "任务已由用户手动终止。")
 
     async def run(self, task_id: str, db: Session):
         """
@@ -89,10 +105,12 @@ class ReviewWorkflow:
                 year_to=task.year_to,
                 output_language=task.language
             )
+            self._ensure_task_active(task, db)
             task.progress = 10
             db.commit()
 
             # ========== 阶段 2：文献检索（进度 10% → 20%）==========
+            self._ensure_task_active(task, db)
             task.current_phase = "SearchAgent"
             db.commit()
 
@@ -109,6 +127,7 @@ class ReviewWorkflow:
                 year_to=task.year_to,
                 limit=task.paper_limit
             )
+            self._ensure_task_active(task, db)
             if not papers:
                 raise NoPapersFoundError(
                     "未检索到相关文献，请尝试使用更具体的英文关键词、扩大年份范围或降低主题限定。"
@@ -117,6 +136,7 @@ class ReviewWorkflow:
             db.commit()
 
             # ========== 阶段 3：文献排序（进度 20% → 30%）==========
+            self._ensure_task_active(task, db)
             task.current_phase = "RankAgent"
             db.commit()
 
@@ -126,6 +146,7 @@ class ReviewWorkflow:
                 topic=task.topic,
                 limit=task.paper_limit
             )
+            self._ensure_task_active(task, db)
             if not ranked_papers:
                 raise NoPapersFoundError(
                     "检索结果未能通过排序筛选，请调整研究主题或年份范围后重试。"
@@ -134,6 +155,7 @@ class ReviewWorkflow:
             db.commit()
 
             # ========== 阶段 4：论文阅读分析（进度 30% → 50%）==========
+            self._ensure_task_active(task, db)
             task.current_phase = "ReadAgent"
             db.commit()
 
@@ -142,10 +164,12 @@ class ReviewWorkflow:
                 ranked_papers=ranked_papers,
                 output_language=task.language
             )
+            self._ensure_task_active(task, db)
             task.progress = 50
             db.commit()
 
             # ========== 阶段 5：文献分类（进度 50% → 60%）==========
+            self._ensure_task_active(task, db)
             task.current_phase = "OrganizeAgent"
             db.commit()
 
@@ -154,10 +178,12 @@ class ReviewWorkflow:
                 analyses=analyses,
                 output_language=task.language
             )
+            self._ensure_task_active(task, db)
             task.progress = 60
             db.commit()
 
             # ========== 阶段 6：大纲生成（进度 60% → 70%）==========
+            self._ensure_task_active(task, db)
             task.current_phase = "OutlineAgent"
             db.commit()
 
@@ -167,10 +193,12 @@ class ReviewWorkflow:
                 topic=task.topic,
                 output_language=task.language
             )
+            self._ensure_task_active(task, db)
             task.progress = 70
             db.commit()
 
             # ========== 阶段 7：RAG 证据召回（进度 70% → 75%）==========
+            self._ensure_task_active(task, db)
             task.current_phase = "RAGAgent"
             db.commit()
 
@@ -181,10 +209,12 @@ class ReviewWorkflow:
                 analyses=analyses,
                 topic=task.topic
             )
+            self._ensure_task_active(task, db)
             task.progress = 75
             db.commit()
 
             # ========== 阶段 8：综述写作（进度 75% → 85%）==========
+            self._ensure_task_active(task, db)
             task.current_phase = "WriteAgent"
             db.commit()
 
@@ -196,10 +226,12 @@ class ReviewWorkflow:
                 rag_evidence=rag_evidence,
                 output_language=task.language
             )
+            self._ensure_task_active(task, db)
             task.progress = 85
             db.commit()
 
             # ========== 阶段 9：引用校验（进度 85% → 95%）==========
+            self._ensure_task_active(task, db)
             task.current_phase = "CitationCheckAgent"
             db.commit()
 
@@ -207,19 +239,29 @@ class ReviewWorkflow:
             # 标记幻觉引用（LLM 编造的不存在的引用）
             valid_ids = [f"paper_{p.get('paper_index', i+1)}" for i, p in enumerate(ranked_papers)]
             citation_result = self.citation_check_agent.run(content, valid_ids)
+            self._ensure_task_active(task, db)
             task.progress = 95
             db.commit()
 
             # ========== 保存结果到数据库（进度 95% → 100%）==========
+            self._ensure_task_active(task, db)
             self._save_results(task_id, db, ranked_papers, analyses, outline, content, citation_result, rag_evidence)
 
             # 标记任务完成
+            self._ensure_task_active(task, db)
             task.status = "completed"
             task.progress = 100
             task.current_phase = "Done"
             db.commit()
 
             logger.info(f"Workflow: Task {task_id} completed successfully")
+
+        except TaskTerminatedError as e:
+            logger.info(f"Workflow: Task {task_id} terminated by user")
+            task.status = "failed"
+            task.current_phase = "Terminated"
+            task.error_message = str(e)
+            db.commit()
 
         except Exception as e:
             # 任何阶段失败，将任务标记为 failed 并记录错误信息
