@@ -28,6 +28,7 @@
       <div class="runtime-tags">
         <el-tag effect="plain" type="success">DeepSeek</el-tag>
         <el-tag effect="plain">Semantic Scholar</el-tag>
+        <el-tag effect="plain" type="success">OpenAlex</el-tag>
         <el-tag effect="plain" type="info">arXiv</el-tag>
       </div>
     </header>
@@ -253,7 +254,7 @@ const pipeline = [
 
 // 数据源信息卡片
 const sourceCards = [
-  { name: '文献来源', value: '2', desc: 'Semantic Scholar + arXiv' },
+  { name: '文献来源', value: '3', desc: 'arXiv + OpenAlex + Semantic Scholar' },
   { name: '生成模型', value: 'DeepSeek', desc: 'OpenAI-compatible Chat API' },
   { name: '存储状态', value: 'Enabled', desc: '任务、论文与结果持久化' },
   { name: '排序方式', value: 'Hybrid', desc: '轻量可解释评分策略' }

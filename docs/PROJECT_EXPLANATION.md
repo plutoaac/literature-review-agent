@@ -19,13 +19,13 @@ ReviewWorkflow
   |
 Query -> Search -> Rank -> Read -> Organize -> Outline -> RAG -> Write -> Citation
   |
-DeepSeek / Minimax API + Semantic Scholar / arXiv
+DeepSeek / Minimax API + arXiv / OpenAlex / Semantic Scholar
 ```
 
 ## Agent 流程
 
 1. QueryAgent：根据研究主题扩展关键词和检索式。
-2. SearchAgent：从 Semantic Scholar 和 arXiv 检索论文。
+2. SearchAgent：优先从 arXiv 检索论文，并使用 OpenAlex / Semantic Scholar 补充结果。
 3. RankAgent：按关键词匹配、引用数、年份和来源权重排序。
 4. ReadAgent：并发分析论文摘要，抽取问题、方法、贡献、局限和数据集。
 5. OrganizeAgent：把论文按研究方向分组，生成对比表和主题总结。
@@ -49,7 +49,7 @@ DeepSeek / Minimax API + Semantic Scholar / arXiv
 
 可以这样介绍：
 
-> 我做了一个科研文献综述自动生成 Agent。它不是单纯把用户问题发给大模型，而是先通过 Semantic Scholar 和 arXiv 检索真实论文，再做轻量相关性排序和结构化阅读，然后构建 RAG 证据片段库，按综述章节召回 evidence 后再生成正文，最后做引用校验。后端用 FastAPI 和 MySQL，前端用 Vue3 和 Element Plus，LLM 接 DeepSeek 或 Minimax。项目重点是完整 AI 应用闭环和可解释的工程实现。
+> 我做了一个科研文献综述自动生成 Agent。它不是单纯把用户问题发给大模型，而是先通过 arXiv、OpenAlex 和 Semantic Scholar 检索真实论文，再做轻量相关性排序和结构化阅读，然后构建 RAG 证据片段库，按综述章节召回 evidence 后再生成正文，最后做引用校验。后端用 FastAPI 和 MySQL，前端用 Vue3 和 Element Plus，LLM 接 DeepSeek 或 Minimax。项目重点是完整 AI 应用闭环和可解释的工程实现。
 
 如果面试官问为什么不用向量模型，可以回答：
 
@@ -65,7 +65,7 @@ DeepSeek / Minimax API + Semantic Scholar / arXiv
 
 ## 当前边界
 
-- Semantic Scholar 和 arXiv 覆盖面有限，不能完全等价于人工检索全部数据库。
+- arXiv、OpenAlex 和 Semantic Scholar 覆盖面有限，不能完全等价于人工检索全部数据库。
 - Google Scholar 没有官方稳定 API，直接爬取有封禁和合规风险，因此当前没有强接。
 - 论文分析主要基于标题和摘要，没有解析 PDF 全文。
 - 生成结果仍需人工校对，尤其是引用表达和学术细节。

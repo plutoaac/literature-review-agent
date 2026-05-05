@@ -97,8 +97,14 @@ class ReviewWorkflow:
             db.commit()
 
             # 从 arXiv 和 Semantic Scholar 双源检索论文
+            search_queries = [
+                task.topic,
+                *query_result.get("search_queries", []),
+                *query_result.get("search_keywords", []),
+            ]
+
             papers = await self.search_agent.run(
-                search_queries=query_result.get("search_queries", [task.topic]),
+                search_queries=search_queries,
                 year_from=task.year_from,
                 year_to=task.year_to,
                 limit=task.paper_limit

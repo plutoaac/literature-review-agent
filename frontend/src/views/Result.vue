@@ -363,7 +363,7 @@ const activeStep = computed(() => {
   return index >= 0 ? index : 0
 })
 
-/** 论文来源统计（Semantic Scholar vs arXiv） */
+/** 论文来源统计 */
 const sourceSummary = computed(() => {
   const counts = {}
   const papers = result.value?.papers || []
@@ -448,7 +448,8 @@ const renderedContent = computed(() => {
 const formatSource = (source) => {
   const map = {
     semantic_scholar: 'Semantic Scholar',
-    arxiv: 'arXiv'
+    arxiv: 'arXiv',
+    openalex: 'OpenAlex'
   }
   return map[source] || source || 'Unknown'
 }
@@ -457,6 +458,7 @@ const formatSource = (source) => {
 const sourceTagType = (source) => {
   if (source === 'semantic_scholar') return 'success'
   if (source === 'arxiv') return 'info'
+  if (source === 'openalex') return 'warning'
   return 'warning'
 }
 

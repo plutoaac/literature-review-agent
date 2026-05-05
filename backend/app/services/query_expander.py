@@ -42,6 +42,31 @@ DOMAIN_TRANSLATIONS = {
     "检索增强生成": ["retrieval augmented generation", "RAG"],
 }
 
+ENGLISH_ALIASES = {
+    "retrieval augmented generation": [
+        "retrieval augmented generation",
+        "retrieval-augmented generation",
+        "retrieval augmented language models",
+        "retrieval augmented generation large language models",
+        "knowledge intensive NLP retrieval augmented generation",
+        "RAG large language models",
+    ],
+    "rag": [
+        "retrieval augmented generation",
+        "retrieval-augmented generation",
+        "retrieval augmented language models",
+        "RAG large language models",
+    ],
+    "multimodal large language models": [
+        "multimodal large language models",
+        "large multimodal models",
+        "multimodal language models",
+        "vision language models",
+        "multimodal LLM",
+        "MLLM",
+    ],
+}
+
 
 def expand_academic_queries(queries: Iterable[str], max_queries: int = 12) -> List[str]:
     """
@@ -62,6 +87,12 @@ def expand_academic_queries(queries: Iterable[str], max_queries: int = 12) -> Li
             continue
         # 保留原始查询
         _append_unique(expanded, query)
+
+        normalized_query = _normalize_english(query)
+        for phrase, aliases in ENGLISH_ALIASES.items():
+            if phrase == normalized_query or phrase in normalized_query:
+                for alias in aliases:
+                    _append_unique(expanded, alias)
 
         # 精确匹配：如果查询包含预定义的中文学术短语，添加对应的英文翻译
         for zh_phrase, english_queries in DOMAIN_TRANSLATIONS.items():
@@ -107,6 +138,12 @@ def _translate_by_terms(query: str) -> str:
 def _contains_chinese(text: str) -> bool:
     """检测文本是否包含中文字符"""
     return bool(re.search(r"[\u4e00-\u9fff]", text or ""))
+
+
+def _normalize_english(text: str) -> str:
+    text = re.sub(r"[-_/]+", " ", text or "")
+    text = re.sub(r"\s+", " ", text).strip().lower()
+    return text
 
 
 def _append_unique(items: List[str], value: str):
